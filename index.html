@@ -1,0 +1,260 @@
+<html>
+    <head>
+        <title>Mapa Carrera Panamericana 2014</title>
+        <meta charset="utf-8"/>
+        <script type="text/javascript" src="https://maps.google.com/maps/api/js?sensor=false"></script> 
+        <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+        <link rel="stylesheet" href="http://code.jquery.com/ui/1.11.1/themes/smoothness/jquery-ui.css">
+        <script src="http://code.jquery.com/jquery-1.10.2.js"></script>
+        <script src="http://code.jquery.com/ui/1.11.1/jquery-ui.js"></script>
+        <link rel="stylesheet" href="http://jqueryui.com/resources/demos/style.css">
+        <script src="data.js"></script>
+    <script>
+var map;
+var points = [];
+
+/* 
+ * AT this point just receives format:
+ * N ddº dd' dd.dd"
+ * sorry dudes
+ */
+function dd(point) {
+    m = 1;
+    r = 0;
+    if(point.substr(0,1).toUpperCase() == "W" ||
+        point.substr(0,1).toUpperCase() == "S") {
+        m = -1;
+    }
+
+    point = point.replace(/[^0-9\. ]/ig,'');
+    point = point.split(" ");
+    r = parseFloat(point[1]) + (parseFloat(point[2])/ 60) + (parseFloat(point[3])/ (60 * 60));
+    return m * r;
+}
+
+function treatLeg(element, day, stage) {
+    pos_start  = new google.maps.LatLng(dd(element.start.lat), dd(element.start.lon));
+    pos_finish = new google.maps.LatLng(dd(element.end.lat), dd(element.end.lon))
+    data[day][stage].marker_start = new google.maps.Marker({
+        position: pos_start,
+        map: map,
+        title: "D" + (day + 1) + "-S" + (stage + 1) + "-Inicio",
+        icon: "http://maps.google.com/intl/en_us/mapfiles/ms/micons/green-dot.png",
+    });
+    data[day][stage].marker_end = new google.maps.Marker({
+        position: pos_finish,
+        map: map,
+        title: "D" + (day + 1) + "-S" + (stage + 1) + "-Final",
+        icon: "http://maps.google.com/intl/en_us/mapfiles/ms/micons/red-dot.png"
+    });
+    
+    points.push(pos_start);
+    points.push(pos_finish);
+
+    data[day][stage].leg = new google.maps.Polyline({
+        path: [pos_start, pos_finish],
+        strokeColor: "#336699",
+        strokeOpaciy: 0.7,
+        strokeWeight: 2,
+    });
+    
+    data[day][stage].leg.setMap(map);
+
+}
+
+function getCenter() {
+    sum_lon = 0;
+    sum_lat = 0;
+    points.forEach(function (element, index){
+        sum_lon = sum_lon + element.lng();
+        sum_lat = sum_lat + element.lat();
+    });
+    return new google.maps.LatLng(sum_lat / points.length, sum_lon / points.length);
+}
+
+function getBounds() {
+    min_lat = 180;
+    min_lon = 180;
+    max_lat = -180;
+    max_lon = -180;
+    points.forEach(function (element, index){
+        if(element.lat() > max_lat) {
+            max_lat = element.lat()
+        }
+        if(element.lat() < min_lat) {
+            min_lat = element.lat();
+        }
+        if(element.lng() > max_lon) {
+            max_lon = element.lng();
+        }
+        if(element.lng() < min_lon) {
+            min_lon = element.lng();
+        }
+    });
+    return new google.maps.LatLngBounds(
+        new google.maps.LatLng(min_lat, min_lon),
+        new google.maps.LatLng(max_lat, max_lon)
+    );
+}
+
+function startMap() {
+    map = new google.maps.Map(
+        $("#map")[0], {
+            zoom: 5,
+            center: new google.maps.LatLng(19,-99),
+            mapTypeId: google.maps.MapTypeId.ROADMAP,
+            scaleControl: true,
+        }
+    );
+
+    showAllDays();
+}
+
+function clearMap() {
+    for(var i = 0; i < data.length; i++) {
+        for(var j = 0; j < data[i].length; j++) {
+            data[i][j].marker_start.setMap(null);
+            data[i][j].marker_end.setMap(null);
+            data[i][j].leg.setMap(null);
+        }
+    }
+    points = [];
+}
+
+function showAllDays() {
+    for(var i = 0; i < data.length; i++) {
+        for(var j = 0; j < data[i].length; j++) {
+            treatLeg(data[i][j], i , j );
+        }
+    }
+    
+    map.fitBounds(getBounds());
+}
+
+function showDay(day) {
+    clearMap();
+    for(var i = 0; i < data[day].length; i++) {
+        treatLeg(data[day][i], day, i);
+    }
+    center = getCenter();
+    map.fitBounds(getBounds());
+//    map.panTo(center);
+}
+
+days = [
+    {
+        "title":"Toda la Ruta",
+    },
+    {
+        "title":"Viernes 17",
+    },
+    {
+        "title":"Sábado 18",
+    },
+    {
+        "title":"Domingo 19",
+    },
+    {
+        "title":"Lunes 20",
+    },
+    {
+        "title":"Martes 21",
+    },
+    {
+        "title":"Miércoles 22",
+    },
+    {
+        "title":"Jueves 23",
+    },
+];
+
+$(function() {    
+    $("#slider").slider({
+        value: 0,
+        min: 0,
+        max: 7,
+        step: 1,
+        slide: function(event, ui) {
+            if(ui.value == 0 ) {
+                showAllDays();
+            } else {
+                $("#day").val( days[ ui.value ].title + ", " + data[ui.value - 1].length + " etapas de velocidad.");
+                showDay(ui.value - 1)
+            }
+        }   
+    });
+    $( "#day" ).val(days[ 0 ].title);
+});
+
+$(document).ready(function(){
+    query = 0;
+    if(window.location.hash != "") {
+        query = window.location.hash.replace(/[^0-9]/ig,'');
+        query = parseInt(query);
+        query = Math.min(query, 7);
+    }
+    console.log(query);
+    startMap();
+    if(!isNaN(query)) {
+        $("#slider").slider("value", query);
+        $("#day").val(days[query].title + ", " + data[query - 1].length + " etapas de velocidad");
+        showDay(query);
+    }
+});
+        </script>
+        
+        <style>
+body {
+    margin: 0px;
+    padding: 0px;
+}
+#map {
+    width: 100%;
+    height: 90%;
+    background-color: red;
+}
+
+#container {
+    padding: 15px;
+    z-index: 100;
+    background-color: #333;
+    color: #ccc;
+    height: 10%;
+    width: 100%;
+    text-align: left;
+}
+
+#monitor {
+    background-color: #333;
+    position: absolute;
+    z-index: 100;
+    top: 190px;
+    left: 100px;
+    width: 120px;
+    height: 400px;
+    color: #ccc;
+    margin: 5px;
+    padding: 5px;
+    font-size: 12;
+}
+        </style>
+    </head>
+    <body>
+        <div id="container" align="center">
+            <p>
+                <label for="day">Día:</label>
+                <input size="40" type="text" id="day" readonly style="border:0; color:#ccc; font-weight:bold; background-color:#333">
+            </p>
+            <div id="slider" style="width: 350px; "></div>
+            <p>
+                <ul>
+                    <li><img src="http://maps.google.com/intl/en_us/mapfiles/ms/micons/green-dot.png" height="15px">Inicio de etapa</li>
+                    <li><img src="http://maps.google.com/intl/en_us/mapfiles/ms/micons/red-dot.png" height="15px">Fin de etapa</li>
+                    <li><b>NOTA:</b> Hay etapas en el mismo día que se corren de ida y vuelta por lo que pueden aparecer encimadas en el mapa</li>
+                </ul>
+            </p>
+        </div>
+        <div id="map">
+        </div>
+    </body>
+</html>
